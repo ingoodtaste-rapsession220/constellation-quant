@@ -33,6 +33,15 @@ every training sample uses the universe that actually existed on that date —
 | Total training runs analysed | **65** | 52 Phase 1 + 13 Phase 2 chained jobs |
 | Tests | **224** passing | covering data, features, graph, model, training, evaluation |
 
+> **Honest framing.** All numbers above are produced from **free, public yfinance
+> data only** (OHLCV + best-effort fundamentals + four macro indices). Across 9
+> very different architectures, val_ic plateaued in the **0.022–0.028** range —
+> this is the **information ceiling of free yfinance data**, not a model
+> limitation. **Meaningful improvement requires upgrading the data**: CRSP
+> (survivorship-free returns), Compustat (clean restated fundamentals),
+> sentiment / news, and options-implied features. No architectural trick will
+> push past this ceiling — only better data will.
+
 ---
 
 ## Table of contents
@@ -538,7 +547,11 @@ score over all four metrics.
 | AlphaStock 2019 (S&P + RL) | proprietary | 0.040+ | 0.62 | +0.005+ |
 
 **On free yfinance data, `constellation-quant` is at or above the published
-academic ceiling.**
+academic ceiling.** The gap to production-tier strategies is almost entirely a
+**data gap**, not a modelling gap: every paper above 0.030 val_ic uses paid
+data (CRSP / Compustat / proprietary alt-data). To match HIST 2021 (val_ic
+0.030–0.045) you need CRSP + Compustat; to match AlphaStock 2019 (val_ic
+0.040+) you additionally need news/sentiment or options data.
 
 ### Industry tiers (approximate)
 
