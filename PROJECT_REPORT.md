@@ -14,11 +14,13 @@
 
 **Architecture**: constellation-quant — a temporal encoder (Informer) + cross-stock graph attention (GAT/RGAT) + slow-feature MLP + multi-task output heads (ranking + return + volatility), trained with IC-maximization loss.
 
-**Result**: 9-variant Phase 1 ablation + Phase 2 LR sweep on top 3, both on 1990-2015 train / 2016-2019 val / 2020-2024 test. **Project peak val_ic = 0.0284** (variant I @ lr=3e-4, ep 10). **Operational best checkpoint** (joint metrics): variant I @ lr=3e-4, ep 11 — val_ic 0.0278, IR 0.213, hit@50 60.9%, spread +0.00302 (≈ +30 bps / 5-day, ~16% gross / year). Phase 1 holds the per-metric records for IR (0.280, variant H) and hit@50 (0.635, variant C, both unswept in Phase 2).
+**Result**: 9-variant Phase 1 ablation + Phase 2 LR sweep on top 3 + Phase 3 held-out test diagnostic. Splits: 1990-2015 train / 2016-2019 val / 2020-2024 test. **Project peak val_ic = 0.0284** (variant I @ lr=3e-4, ep 10). **Operational best val checkpoint** (joint metrics): variant I @ lr=3e-4, ep 11 — val_ic 0.0278, IR 0.213, hit@50 60.9%, spread +0.00302 (≈ +30 bps / 5-day, ~16% gross / year). Phase 1 holds the per-metric records for IR (0.280, variant H) and hit@50 (0.635, variant C, both unswept in Phase 2).
 
-**Position vs literature**: matches or slightly beats published academic finance ML papers using comparable yfinance-only data (Sawhney 2021, Feng 2019). Falls short of papers using paid CRSP/Compustat (HIST 2021, AlphaStock 2019).
+**Test-period reality check (2020-2024)**: the val signal does not transfer. Test mean IC = +0.0029 for variant I (t-stat +0.29), +0.0043 for D (t-stat +0.39), −0.0034 for C (t-stat −0.31) — all statistically indistinguishable from zero. Score distributions are healthy (range/std 7.9–16, no ListMLE collapse), so this is honest overfitting rather than a pipeline bug. The model architecture is sound; the data is the binding constraint.
 
-**Honest framing**: not a deployable trading strategy (val_ic 0.025 < industry threshold 0.04). A solid, methodologically rigorous ML system that has reached the information ceiling of free data. The natural next step requires upgrading to CRSP + Compustat + sentiment.
+**Position vs literature**: matches or slightly beats published academic finance ML papers using comparable yfinance-only data on the validation period (Sawhney 2021, Feng 2019). Falls short of papers using paid CRSP/Compustat (HIST 2021, AlphaStock 2019). The OOS test result reinforces that the gap is data, not architecture.
+
+**Honest framing**: not a deployable trading strategy. The val signal is real but doesn't survive a regime shift to the 2020-2024 test window (COVID + recovery + rate-hike cycle + tech boom/bust). A methodologically rigorous ML system that has reached and verified the information ceiling of free data. The natural next step requires upgrading to CRSP + Compustat + sentiment.
 
 ---
 
@@ -252,9 +254,42 @@ All variants share:
 
 ### Test results
 
-**Test diagnostic was NOT yet run on the final ablation checkpoints.** Phase 3 of the project plan: run `scripts/diagnose_test_ic.py` on `I_best.pt` (and ideally C, D, H) to get out-of-sample numbers on the 2020-2024 test set.
+The held-out test diagnostic was run on the three Phase 2 winners (variants I, D, C at lr=3e-4) over the 2020-2024 period. Numbers below were produced by `scripts/diagnose_test_ic.py` on a CPU run (the gpushort partition allocated a V100 with compute capability 7.0, which the cluster's PyTorch wheels don't support; the diagnostic is pure inference and runs in ~2 minutes per variant on CPU).
 
-The previous diagnostic run (run on an earlier checkpoint with different setup) gave **mean test IC ≈ −0.003**, t-stat ≈ −0.20 — but that was before val/test split fixes and architectural changes. The current ablation results need fresh test evaluation.
+| Variant | Val IC peak | Test mean IC | t-stat | Median IC | Days IC > 0 | Verdict |
+|---|---|---|---|---|---|---|
+| I @ lr=3e-4 | 0.0284 | **+0.00290** | +0.29 | −0.0046 | 48.2% | overfit (no test signal) |
+| D @ lr=3e-4 | 0.0276 | **+0.00435** | +0.39 | −0.0017 | 49.8% | overfit (no test signal) |
+| C @ lr=3e-4 | 0.0254 | **−0.00342** | −0.31 | −0.0109 | 47.8% | overfit (no test signal) |
+
+**The validation signal does not transfer to the held-out test period.** All three top variants have test IC statistically indistinguishable from zero (|t-stat| < 0.5; threshold for significance is 2.0).
+
+This is honest overfitting, not a pipeline bug:
+
+- Score-distribution stats are healthy: avg `range/std` is 7.9 (I), 16.0 (D), 16.0 (C). Anything above ~3 rules out ListMLE-style score collapse — the model is producing meaningful relative scores.
+- Test IC distributions are roughly symmetric around zero; not a regime inversion (which would give persistent negative IC) and not a backtest pipeline bug (which would give positive IC with negative Sharpe).
+- The model architecture is sound (Phase 1 ablation showed monotonic A→D improvement; Phase 2 LR sweep produced clean curves). The data is the binding constraint.
+
+Per-half-year regime breakdown (variant I @ lr=3e-4):
+
+```
+2020-H1  COVID crash              IC = −0.018   model breaks during regime change
+2020-H2  recovery                 IC = +0.010
+2021-H1  post-COVID rally         IC = +0.035   ← single best test bucket
+2021-H2  rotation                 IC = −0.030
+2022-H1  rate hikes start         IC = −0.029   model breaks again
+2022-H2  continued rate hikes     IC = +0.022
+2023-H1                           IC = +0.020
+2023-H2                           IC = +0.008
+2024-H1                           IC = −0.003
+2024-H2                           IC = +0.013
+```
+
+The signal is regime-dependent — works in trending recoveries (2021-H1), breaks during regime transitions (2020-H1 COVID crash, 2022-H1 rate-hike onset). Averaging across regimes gives noise. A regime-conditional model is plausible future work.
+
+Implication for the after-cost economics in §6: the val-period spread of +30 bps / 5d gave an estimated net Sharpe of 0.5–0.7. With test IC ≈ 0, the realised test-period net Sharpe is **approximately zero**, not 0.5–0.7. The §6 numbers now read as an upper bound under the assumption that val-period dynamics generalise — empirically they don't on this data.
+
+Test results saved to `analysis/test_ic_results.csv`. Full per-variant diagnostic output (per-day IC, score distribution snapshots, half-year buckets) was captured in the SLURM job log.
 
 ### Train-loss / val-IC consistency
 
@@ -622,20 +657,19 @@ constellation-quant/
 
 Top 3 variants {I, C, D} × LRs {3e-4, 1e-3, 3e-3} swept. Winner: **I @ lr=3e-4, ep 10/11**, val_ic = 0.0284 (auto-saved) / 0.0278 with IR=0.213, hit@50=0.609, spread=0.00302 (operational best). All 9 checkpoints archived in `data/checkpoints/phase2_sweep/`.
 
-### Test evaluation (Phase 3 — pending, next step)
+### Test evaluation (Phase 3 — completed)
 
-Run `diagnose_test_ic.py` on the Phase 2 winner:
+Held-out test diagnostic was run on all three Phase 2 winners (variants I, D, C at lr=3e-4) using `scripts/diagnose_test_ic.py` over the 2020–2024 test period. **All three variants overfit**: test mean IC was statistically indistinguishable from zero (|t-stat| < 0.5 for all three).
 
-```bash
-python scripts/diagnose_test_ic.py \
-    --checkpoint     data/checkpoints/phase2_sweep/I_lr3em4_best.pt \
-    --model-config   configs/ablation/model_I.yaml \
-    --feature-config configs/ablation/features_I.yaml \
-    --csv-out        logs/phase_metrics.csv \
-    --phase-tag      I_phase2_final
-```
+| Variant | Test mean IC | t-stat | Verdict |
+|---|---|---|---|
+| I @ lr=3e-4 | +0.00290 | +0.29 | overfit |
+| D @ lr=3e-4 | +0.00435 | +0.39 | overfit |
+| C @ lr=3e-4 | −0.00342 | −0.31 | overfit |
 
-Reports test IC, val_ic_ir, t-stat, half-year IC buckets, score-distribution snapshots, plus an interpretation verdict. Run on additional checkpoints (D_lr3em4, C_lr3em4) for cross-variant sanity check.
+Score distributions are healthy (avg range/std 7.9–16, well above the ~3 threshold for ListMLE collapse), so this is honest overfitting rather than a pipeline bug. The val signal is real but doesn't survive the regime shift to 2020–2024 (COVID + recovery + rate hikes + tech boom/bust).
+
+See [§5](#5-final-results---phase-1-ablation) for the full per-half-year regime breakdown and interpretation. Test results saved to `analysis/test_ic_results.csv`.
 
 ### Data upgrades (the real lever)
 
@@ -705,7 +739,10 @@ Most stable variant:                           C (fundamentals, slow + clean tra
 Architectural variants tested:                 9 (A through I)
 LR sweep:                                      3 LRs × 3 top variants = 9 checkpoints
 Test set:                                      2020-2024 (COVID + recovery + rate hikes)
-Test IC on best checkpoint:                    PENDING (Phase 3)
+Test IC on best checkpoint (variant I @ lr=3e-4):
+  Mean IC:                                     +0.00290 (t-stat +0.29 — statistically zero)
+  Days IC > 0:                                 48.2%
+  Verdict:                                     Val signal does NOT transfer OOS. Overfit.
 Code:                                          ~3000 lines Python
 Tests:                                         224 passing
 ```

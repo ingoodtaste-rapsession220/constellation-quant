@@ -1,0 +1,4 @@
+timestamp,phase_tag,checkpoint,period_start,period_end,n_dates,mean_ic,median_ic,std_ic,t_stat,frac_pos,frac_neg,avg_range_over_std,verdict
+2026-04-27T16:53:16,I_phase2_test,data/checkpoints/phase2_sweep/I_lr3em4_best.pt,2020-01-01,2024-12-31,251,+0.002896,-0.004627,0.160441,+0.286,0.482,0.518,7.91,verdict: OVERFITTING (test signal indistinguishable from zero)
+2026-04-27T16:55:02,D_phase2_test,data/checkpoints/phase2_sweep/D_lr3em4_best.pt,2020-01-01,2024-12-31,251,+0.004347,-0.001682,0.176166,+0.391,0.498,0.502,16.01,verdict: OVERFITTING (test signal indistinguishable from zero)
+2026-04-27T16:56:20,C_phase2_test,data/checkpoints/phase2_sweep/C_lr3em4_best.pt,2020-01-01,2024-12-31,251,-0.003417,-0.010897,0.172121,-0.314,0.478,0.522,16.02,verdict: OVERFITTING (test signal indistinguishable from zero)

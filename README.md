@@ -24,25 +24,30 @@ delisted-stock blind spot.
 
 After running 9 architectural variants and a learning-rate sweep on the top 3,
 the best validation Information Coefficient was **0.0284** (variant I,
-multi-scale Informer + R-GAT + sector hierarchy, lr=3e-4). The picks at the
-top of the list are right about **61% of the time**, and the long/short
-spread runs at **+30 bps over each 5-day window** before costs.
+multi-scale Informer + R-GAT + sector hierarchy, lr=3e-4) — competitive with
+academic finance ML papers using comparable data.
 
-| | |
-|---|---|
-| Best val IC | 0.0284 (variant I, lr=3e-4, epoch 10) |
-| Best operational checkpoint (joint metrics) | I @ lr=3e-4, epoch 11 — val_ic 0.0278, IR 0.213, hit@50 60.9%, spread +0.00302 |
-| Highest Information Ratio | 0.280 (variant H, hierarchical) |
-| Highest hit@50 | 0.660 (variant D, lr=1e-3, epoch 2 — see the fluke discussion below) |
-| Universe | 503 securities, time-stamped S&P 500 membership |
-| Train / Val / Test | 1990–2015 / 2016–2019 / 2020–2024 |
-| Architectural variants | 9 (A through I) |
-| Training runs analysed | 65 (52 Phase 1 + 13 Phase 2 chained jobs) |
-| Tests | 224 passing |
+The validation signal **did not transfer to the held-out 2020–2024 test
+period**. Test-period IC is statistically indistinguishable from zero across
+all three top variants (t-stats < 0.5). The model overfits the validation
+window. See [Held-out test results](#held-out-test-results-the-honest-answer)
+below for the full breakdown.
+
+| | Val (2016–2019) | **Test (2020–2024)** |
+|---|---|---|
+| Best variant (I @ lr=3e-4, ep 10) | val_ic 0.0284 | **mean IC +0.0029, t-stat +0.29** |
+| Variant D @ lr=3e-4 | val_ic 0.0276 | **mean IC +0.0043, t-stat +0.39** |
+| Variant C @ lr=3e-4 | val_ic 0.0254 | **mean IC −0.0034, t-stat −0.31** |
+| Universe | 503 securities, time-stamped S&P 500 membership | |
+| Train / Val / Test | 1990–2015 / 2016–2019 / 2020–2024 | |
+| Architectural variants | 9 (A through I) + 9-point LR sweep on top 3 | |
+| Training runs analysed | 65 (52 Phase 1 + 13 Phase 2 chained jobs) | |
+| Tests | 224 passing | |
 
 The full per-epoch breakdown is in
-[`PROJECT_REPORT.md`](PROJECT_REPORT.md) and the parsed CSVs live in
-[`analysis/`](analysis/).
+[`PROJECT_REPORT.md`](PROJECT_REPORT.md), parsed CSVs live in
+[`analysis/`](analysis/), and the test diagnostic output is in
+[`analysis/test_ic_results.csv`](analysis/test_ic_results.csv).
 
 ---
 
@@ -55,17 +60,25 @@ Across nine very different architectures, val IC plateaued somewhere in the
 architectures differ from each other, which is the giveaway: I'm hitting the
 information ceiling of the data, not a model design ceiling.
 
-To get materially higher than 0.028 I'd need different data. CRSP would give
-me survivorship-bias-free returns and clean delisting handling. Compustat
-gives clean, restated fundamentals (yfinance fundamentals are
-best-effort scrapes — they don't reflect restatements properly). Real
-alternative data — news sentiment, options-implied vols, insider trades —
-would push further. None of those are free, which is why this project stops
-where it stops.
+The held-out test result confirms this: **the val signal does not survive an
+out-of-sample regime shift**. Test IC across 2020–2024 is statistically zero
+for every top variant. The 2020–2024 period (COVID, recovery, rate-hike
+cycle, tech boom/bust) has different cross-sectional dynamics than the
+2016–2019 val window, and yfinance technicals don't carry enough information
+to bridge that.
 
-I think that's the honest framing. The model is competitive with academic
-finance ML on free data; the gap to production-grade strategies is mostly a
-data gap, not a modelling gap.
+To get materially higher than 0.028 *and* have it generalise OOS, I'd need
+different data. CRSP would give me survivorship-bias-free returns and clean
+delisting handling. Compustat gives clean, restated fundamentals (yfinance
+fundamentals are best-effort scrapes — they don't reflect restatements
+properly). Real alternative data — news sentiment, options-implied vols,
+insider trades — would push further. None of those are free, which is why
+this project stops where it stops.
+
+That's the honest framing. The model is competitive with academic finance ML
+on free data *in-sample*, but it doesn't survive OOS testing. The gap to
+production-grade strategies is mostly a data gap, not a modelling gap — and
+the test results above are exactly the kind of finding most ML papers omit.
 
 ---
 
@@ -80,12 +93,13 @@ data gap, not a modelling gap.
 7. [Phase 1 — 9 variants at one learning rate](#phase-1--9-variants-at-one-learning-rate)
 8. [Phase 2 — learning-rate sweep on the top 3](#phase-2--learning-rate-sweep-on-the-top-3)
 9. [Why the saved checkpoint isn't always the best](#why-the-saved-checkpoint-isnt-always-the-best)
-10. [How this compares to published work](#how-this-compares-to-published-work)
-11. [Would this make money after costs?](#would-this-make-money-after-costs)
-12. [Limitations](#limitations)
-13. [How I got here (phase log)](#how-i-got-here-phase-log)
-14. [Install and quickstart](#install-and-quickstart)
-15. [License and citation](#license-and-citation)
+10. [Held-out test results — the honest answer](#held-out-test-results--the-honest-answer)
+11. [How this compares to published work](#how-this-compares-to-published-work)
+12. [Would this make money after costs?](#would-this-make-money-after-costs)
+13. [Limitations](#limitations)
+14. [How I got here (phase log)](#how-i-got-here-phase-log)
+15. [Install and quickstart](#install-and-quickstart)
+16. [License and citation](#license-and-citation)
 
 ---
 
@@ -512,6 +526,97 @@ four metrics rather than val IC alone. That's on the to-do list.
 
 ---
 
+## Held-out test results — the honest answer
+
+The validation IC of 0.0284 is competitive with academic finance ML on free
+yfinance data. But validation numbers are easy to overfit, and most published
+ML-for-finance papers stop there. The held-out 2020–2024 test period is what
+actually answers whether the signal is real.
+
+I ran the test diagnostic on all three top-variant Phase 2 winners (I, D, C
+at lr=3e-4). The verdict is consistent across all three: **the validation
+signal does not transfer to the test period**.
+
+| Variant | Val IC peak (2016–2019) | Test mean IC (2020–2024) | Test t-stat | Median IC | Days IC > 0 |
+|---|---|---|---|---|---|
+| I | 0.0284 | **+0.0029** | +0.29 | −0.0046 | 48.2% |
+| D | 0.0276 | **+0.0043** | +0.39 | −0.0017 | 49.8% |
+| C | 0.0254 | **−0.0034** | −0.31 | −0.0109 | 47.8% |
+
+All three t-stats are well below the |2| threshold for statistical
+significance. The fraction of days with positive IC sits right around 50% —
+a coin flip. In plain English: by the standard quantitative finance bar, none
+of these variants have a real out-of-sample edge.
+
+### What kind of failure is this?
+
+The diagnostic also reports score-distribution stats per date, so we can
+distinguish *what type* of failure this is:
+
+| Indicator | Reading | Meaning |
+|---|---|---|
+| Score range / std (avg) | 7.9 (I), 16.0 (D), 16.0 (C) | Healthy spread — model is producing meaningful relative scores, not collapsing to uniform output |
+| Score IQR | ~0.04–0.20 | Comparable across dates — no per-date collapse |
+| Test IC distribution | Symmetric around zero | Not a regime inversion (would expect persistent negative IC); not a pipeline bug (would expect negative Sharpe with positive IC) |
+
+This is **honest overfitting**, not a broken pipeline. The model learned
+val-period structure that the test period doesn't reproduce. The 2020–2024
+window contains COVID, a recovery, a rate-hike cycle, and tech boom/bust —
+cross-sectional dynamics that the 1990–2019 training history doesn't fully
+prepare the model for.
+
+### Per-half-year regime breakdown (variant I)
+
+The IC isn't uniformly zero across the test period — there are regimes where
+the model has edge and regimes where it doesn't. They average out:
+
+```
+2020-H1  (COVID crash)           IC = −0.018   model breaks during regime change
+2020-H2  (COVID recovery)        IC = +0.010
+2021-H1  (post-COVID rally)      IC = +0.035   ← best test-period bucket
+2021-H2  (rotation)              IC = −0.030
+2022-H1  (rate hikes start)      IC = −0.029   model breaks again
+2022-H2  (continued rate hikes)  IC = +0.022
+2023-H1                          IC = +0.020
+2023-H2                          IC = +0.008
+2024-H1                          IC = −0.003
+2024-H2                          IC = +0.013
+```
+
+So the model's signal is *regime-dependent*. It worked in 2021-H1 (a
+trending-recovery regime that resembles parts of training history), broke
+during the 2020-H1 COVID crash and the 2022-H1 rate-hike onset (regime
+changes), and is roughly flat in the back half of the period. A
+regime-conditional version of the model — different parameters for
+high-vol vs low-vol periods, for example — might recover some of the lost
+performance, but that's future work.
+
+### Implication for the after-cost economics
+
+The after-cost section below estimated a net Sharpe of ~0.5–0.7 based on the
+val-period spread. With test IC ≈ 0, the realised test-period Sharpe is
+**approximately zero**, not 0.5–0.7. Don't deploy this on live capital.
+
+### Why this is still a useful project
+
+Two reasons.
+
+**One**, this is what methodologically rigorous ML-for-finance looks like:
+build the model, report the val number, run the OOS test, accept what comes
+back, report it honestly. Most papers in this space don't run the OOS test —
+or they run it but only report the periods that worked.
+
+**Two**, this isolates the *cause* cleanly. The model architecture is sound
+(score distributions are healthy, val signal is real, ablation shows
+monotonic improvement A → I, comparison to published baselines is favourable
+in-sample). The data is the binding constraint. CRSP / Compustat / sentiment
+/ options data would change the answer; clever architecture won't.
+
+Test results are saved to
+[`analysis/test_ic_results.csv`](analysis/test_ic_results.csv).
+
+---
+
 ## How this compares to published work
 
 | Source | Data tier | val_ic | hit@50 | spread |
@@ -559,11 +664,15 @@ estimated net Sharpe                         ≈ 0.5–0.7
 ```
 
 A 0.5–0.7 net Sharpe is academically meaningful — it survives realistic
-transaction costs to produce a positive expected return. But it's well
-below the typical hurdle for live deployment at a hedge fund (1.5+). For
-a personal portfolio with patient capital and tax considerations factored
-in, it's plausibly worth running; for institutional money, you'd want better
-data first.
+transaction costs to produce a positive expected return.
+
+**Caveat from the held-out test.** The numbers above are derived from the
+val-period spread. As reported in the
+[Held-out test results](#held-out-test-results--the-honest-answer) section,
+the val signal does not transfer to 2020–2024. Realised test-period Sharpe
+is approximately zero, not 0.5–0.7. Treat this section as an *upper bound*
+under the assumption that val-period dynamics generalise — which they
+empirically don't on this data.
 
 ---
 
@@ -596,10 +705,15 @@ information ceiling than the model ceiling.
 more robust but ~10× the compute. Future work.
 
 **No SWA, no warm restarts.** Probably another 0.005–0.010 of val IC
-available there.
+available there — but given the val signal doesn't transfer OOS, those
+gains likely don't translate to test performance either.
 
-**Test diagnostic isn't run yet on the Phase 2 winner.** That's the next
-step — `cq-evaluate --checkpoint analysis/phase2_winner.pt` on 2020–2024.
+**The val signal doesn't generalise to the held-out test period.** Test IC
+on 2020–2024 is statistically zero across all three top variants. See
+[Held-out test results](#held-out-test-results--the-honest-answer). This is
+the most important limitation, and it's the binding constraint that all the
+others above lead back to: free yfinance data isn't rich enough to learn a
+signal that survives a regime shift.
 
 **`save_best` keyed on a single metric.** See the [discussion above](#why-the-saved-checkpoint-isnt-always-the-best).
 
@@ -631,6 +745,11 @@ This wasn't built in one shot. Roughly the path was:
     main loss anyway.
 11. **Phase 1 ablation** at lr=1e-3 — 9 variants, clean comparison.
 12. **Phase 2 LR sweep** on top 3 — found that lr=3e-4 was the right pick.
+13. **Phase 3 held-out test diagnostic** on the Phase 2 winners (variants I,
+    D, C @ lr=3e-4) — test IC across 2020–2024 came back statistically
+    indistinguishable from zero for all three. The val signal doesn't
+    transfer OOS. That's the key result and it pinned down the binding
+    constraint as data quality, not architecture.
 
 For a deeper write-up of the engineering decisions and trade-offs, see
 [`PROJECT_REPORT.md`](PROJECT_REPORT.md).
