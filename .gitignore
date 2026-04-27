@@ -81,3 +81,6 @@ proposal.pdf
 
 # Local dev scratch
 .scratch/
+
+# Raw experiment log tarball (parsed contents are committed in analysis/)
+phase1_logs.tar.gz
