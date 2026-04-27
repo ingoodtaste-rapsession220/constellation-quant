@@ -326,6 +326,39 @@ All variants share:
 - 1990-2015 train / 2016-2019 val / 2020-2024 test
 - Phase 1 lr=1e-3, dropout=0.3, weight_decay=5e-3
 
+### Per-variant architecture diagrams
+
+Each diagram shows exactly which blocks are active for that variant. Disabled
+blocks are faded; active capability chips are filled. Diagrams are generated
+by [`assets/generate_variant_diagrams.py`](assets/generate_variant_diagrams.py).
+
+#### Variant A — Informer only (no graph)
+![Variant A](assets/variants/A.svg)
+
+#### Variant B — + static sector graph
+![Variant B](assets/variants/B.svg)
+
+#### Variant C — + fundamentals features
+![Variant C](assets/variants/C.svg)
+
+#### Variant D — + dynamic correlation edges
+![Variant D](assets/variants/D.svg)
+
+#### Variant E — + multi-relational R-GAT
+![Variant E](assets/variants/E.svg)
+
+#### Variant F — + sentiment features
+![Variant F](assets/variants/F.svg)
+
+#### Variant G — + dynamic membership
+![Variant G](assets/variants/G.svg)
+
+#### Variant H — + hierarchical super-nodes
+![Variant H](assets/variants/H.svg)
+
+#### Variant I — + multi-scale lookback (20 + 60 + 120)
+![Variant I](assets/variants/I.svg)
+
 ---
 
 ## Training setup
