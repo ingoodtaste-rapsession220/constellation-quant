@@ -1,0 +1,52 @@
+# Data pipeline configuration.
+# Paths resolve through configs/paths.yaml + environment variables.
+
+universe:
+  source: sp500
+  membership_repo: fja05680/sp500   # primary source (GitHub)
+  membership_fallback: wikipedia     # scraper fallback
+  holdings_validator: ishares_ivv    # secondary cross-check
+
+# Chronological splits — NEVER shuffle.
+# Train start extended to 1990 to ~triple the effective sample count
+# (post stride=horizon decimation). yfinance auto-truncates to whatever
+# history each ticker has — pre-2000 coverage is patchy but free upside.
+splits:
+  train:
+    start: "1990-01-01"
+    end:   "2019-12-31"
+  val:
+    start: "2020-01-01"
+    end:   "2021-12-31"    # includes COVID crash as validation stress test
+  test:
+    start: "2022-01-01"
+    end:   "2024-12-31"    # rate-hike regime
+
+# Download behaviour
+download:
+  price_provider: yfinance
+  fundamentals_provider: yfinance    # simfin as fallback
+  sentiment_sources: [finviz, stocktwits, reddit]
+  batch_size: 50                     # tickers per API burst
+  max_retries: 5
+  retry_backoff_base: 2.0            # seconds, exponential
+  resume: true                       # skip already-downloaded tickers
+
+# Cleaning
+cleaning:
+  adjust_splits: true
+  adjust_dividends: true
+  max_single_day_move: 0.50          # >50% move flagged; if reverts, drop
+  forward_fill_max_gap_days: 2
+  ticker_aliases:
+    FB:  META
+    GOOG: GOOGL                      # keep GOOGL (voting class) canonical
+
+# Rolling windows used downstream
+windows:
+  correlation_days: 30
+  fundamental_refresh_quarters: 1    # forward-fill q → daily
+  return_horizons: [1, 5, 20]
+
+# Paths (references to paths.yaml keys; resolved by the data layer)
+paths_ref: paths.yaml

@@ -1,0 +1,136 @@
+# Master ablation definitions. The runner consumes this file and, for each
+# variant, emits a full model_config override via ablation/config_generator.py.
+#
+# Each variant adds EXACTLY ONE component relative to its predecessor so the
+# IC/Sharpe delta isolates that component's contribution.
+
+# ── Main sweep: Models A through I ───────────────────────────────────────────
+variants:
+  - name: A
+    description: Baseline — Informer only, no graph, technical features
+    overrides:
+      graph: {enabled: false, gnn_name: none}
+      hierarchy: {enabled: false}
+      membership: {mode: fixed}
+    features: [technical]
+
+  - name: B
+    description: + Static sector graph
+    overrides:
+      graph: {enabled: true, gnn_name: gat}
+      edges: {correlation: {threshold: null}}
+      hierarchy: {enabled: false}
+      membership: {mode: fixed}
+    features: [technical]
+    edge_types: [sector]
+
+  - name: C
+    description: + Fundamental features
+    overrides:
+      graph: {enabled: true, gnn_name: gat}
+      hierarchy: {enabled: false}
+      membership: {mode: fixed}
+    features: [technical, fundamental]
+    edge_types: [sector]
+
+  - name: D
+    description: + Dynamic correlation edges
+    overrides:
+      graph: {enabled: true, gnn_name: gat}
+      hierarchy: {enabled: false}
+      membership: {mode: fixed}
+    features: [technical, fundamental]
+    edge_types: [correlation]
+
+  - name: E
+    description: + Multi-relational edges (correlation + attention + fundamental)
+    overrides:
+      graph: {enabled: true, gnn_name: rgat, edge_types: [correlation, attention, fundamental]}
+      hierarchy: {enabled: false}
+      membership: {mode: fixed}
+    features: [technical, fundamental]
+    edge_types: [correlation, attention, fundamental]
+
+  - name: F
+    description: + Sentiment features
+    overrides:
+      graph: {enabled: true, gnn_name: rgat}
+      hierarchy: {enabled: false}
+      membership: {mode: fixed}
+    features: [technical, fundamental, sentiment]
+    edge_types: [correlation, attention, fundamental]
+
+  - name: G
+    description: + Dynamic S&P 500 membership (survivorship-bias correction)
+    overrides:
+      graph: {enabled: true, gnn_name: rgat}
+      hierarchy: {enabled: false}
+      membership: {mode: dynamic}
+    features: [technical, fundamental, sentiment]
+    edge_types: [correlation, attention, fundamental]
+
+  - name: H
+    description: + Hierarchical super-nodes (sector + market)
+    overrides:
+      graph: {enabled: true, gnn_name: rgat}
+      hierarchy: {enabled: true}
+      membership: {mode: dynamic}
+    features: [technical, fundamental, sentiment]
+    edge_types: [correlation, attention, fundamental]
+
+  - name: I
+    description: + Multi-scale lookback (20 + 120)  — full model
+    overrides:
+      multi_scale: true
+      multi_scale_windows: [20, 120]
+      graph: {enabled: true, gnn_name: rgat}
+      hierarchy: {enabled: true}
+      membership: {mode: dynamic}
+    features: [technical, fundamental, sentiment]
+    edge_types: [correlation, attention, fundamental]
+
+# ── Secondary sweeps: dimension studies on top of Model I (unless noted) ────
+sweeps:
+  temporal_models:
+    base_variant: I
+    values: [informer, lstm, transformer, tcn, mamba]
+    override_path: temporal.name
+
+  graph_architectures:
+    base_variant: D           # per spec: swap GNN on D's config
+    values: [gcn, gat, rgat, graphsage]
+    override_path: graph.gnn_name
+
+  lookback_windows:
+    base_variant: I
+    values: [20, 40, 60, 90, 120]
+    override_path: lookback
+    extra:
+      - name: multiscale_20_120
+        overrides:
+          multi_scale: true
+          multi_scale_windows: [20, 120]
+
+  forecast_horizons:
+    base_variant: I
+    values: [1, 5, 10, 20]
+    override_path: horizon
+
+  edge_thresholds:
+    base_variant: I
+    values: [0.3, 0.5, 0.7]
+    override_path: edges.correlation.threshold
+    extra:
+      - name: topk_5
+        overrides: {edges: {correlation: {threshold: null, top_k: 5}}}
+      - name: topk_10
+        overrides: {edges: {correlation: {threshold: null, top_k: 10}}}
+      - name: topk_20
+        overrides: {edges: {correlation: {threshold: null, top_k: 20}}}
+
+# ── Execution settings ──────────────────────────────────────────────────────
+execution:
+  parallel: true              # launch variants as SLURM array jobs
+  resume: true                # skip variants already in wandb with status=finished
+  wandb_project: constellation_quant_ablation
+  tag_prefix: dg500

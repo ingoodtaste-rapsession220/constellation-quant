@@ -1,0 +1,83 @@
+# Weights & Biases hyperparameter sweep for the best ablation variant.
+# Feed into `wandb sweep configs/sweep_config.yaml` to register the sweep,
+# then launch N agents with `wandb agent <sweep_id>` (our scripts/sweep.py
+# does both in one step).
+#
+# Method: Bayesian optimisation. Target: maximise val_ic from the validator.
+# Parameters span the hyperparameter axes the ablation can't explore cheaply
+# (those would each become ~O(5) extra variants). Ranges picked to sit near
+# the defaults — we're polishing, not re-searching the whole space.
+
+program: scripts/train.py
+method: bayes
+
+metric:
+  name: val_ic_mean
+  goal: maximize
+
+parameters:
+  # Optimisation
+  optimizer.lr:
+    distribution: log_uniform_values
+    min: 5.0e-5
+    max: 5.0e-4
+  optimizer.weight_decay:
+    distribution: log_uniform_values
+    min: 1.0e-5
+    max: 1.0e-3
+
+  # Regularisation
+  temporal.dropout:
+    distribution: uniform
+    min: 0.05
+    max: 0.30
+
+  # Model capacity (coarse)
+  temporal.d_model:
+    values: [128, 192, 256, 384]
+  temporal.n_heads:
+    values: [4, 8]
+
+  # GNN
+  graph.hidden_dim:
+    values: [64, 96, 128, 192]
+  graph.num_layers:
+    values: [2, 3, 4]
+
+  # Graph structure
+  edges.correlation.threshold:
+    values: [0.3, 0.5, 0.7]
+
+  # Training
+  loop.batch_size:
+    values: [16, 32, 64]
+
+# Typical per-run budget — the sweep scheduler will early-stop bad trials.
+early_terminate:
+  type: hyperband
+  s: 2
+  eta: 3
+  max_iter: 50
+
+# How many trials total. Set higher on HPC; lower locally.
+run_cap: 50
+
+# Command template. Variables in `${...}` are filled by the wandb agent.
+command:
+  - ${env}
+  - ${interpreter}
+  - ${program}
+  - --model-config
+  - configs/model_config.yaml
+  - --training-config
+  - configs/training_config.yaml
+  - --data-config
+  - configs/data_config.yaml
+  - --feature-config
+  - configs/feature_config.yaml
+  - --paths-config
+  - configs/paths.yaml
+  - --variant-name
+  - sweep
+  - --resume
+  - ${args}

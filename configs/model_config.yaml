@@ -1,0 +1,113 @@
+# Model architecture. Every tunable lives here.
+# Ablation variants override selected fields (see configs/ablation/*.yaml).
+
+# Sequence / universe dimensions
+lookback: 60               # L — trading days in each input window
+horizon: 5                 # H — forward-return horizon for the target
+multi_scale: false         # if true, use [20, 120] parallel encoders
+multi_scale_windows: [20, 120]
+
+# Phase-4 slow-static branch — small MLP that processes the per-stock
+# snapshot of slow features (RSI/MACD/ATR/etc.) and fuses the result with
+# the temporal embedding before the GNN. Disabled automatically when the
+# dataset doesn't emit a slow_features tensor (e.g. OHLCV mode).
+#
+# `gated_fusion` controls how the fast/slow embeddings are combined:
+#   - false: simple concat — both branches contribute equally.
+#   - true (default): per-channel sigmoid gates on each branch let the
+#     model down-weight whichever branch is uninformative for a given
+#     stock-day. ~2k extra params, no change to downstream dimensions.
+slow_branch:
+  enabled: true
+  hidden: 32
+  out_dim: 16
+  dropout: 0.3
+  gated_fusion: true
+
+# Temporal encoder — factory key picks the class
+# Phase-3 right-sizing: target ~150-250k params total. Even after Phase-1
+# data extension we are sample-poor; a small model is the best regulariser.
+temporal:
+  name: informer           # informer | lstm | transformer | tcn | mamba
+  d_model: 64              # 256→128→64 — Informer is the dominant param consumer
+  n_heads: 4               # head_dim stays at 16
+  e_layers: 2              # was 3 — 33% fewer attention layers
+  d_ff: 128                # was 256 — track d_model
+  dropout: 0.3             # was 0.2 — even stronger; aggressive memorisation guard
+  # Informer-specific
+  probsparse_factor: 5
+  distil: true
+  use_learnable_pe: true
+  cross_stock_attention: false   # second attention head across the stock dim
+  # Shared
+  pooling: attention_weighted_mean   # attention_weighted_mean | last | mean
+
+# GNN
+graph:
+  enabled: true
+  gnn_name: rgat           # none | gcn | gat | rgat | graphsage
+  hidden_dim: 32           # was 64 — track halved temporal dim
+  num_layers: 2            # was 3
+  edge_types: [correlation, attention, fundamental]
+  aggregation: attention
+  dropout: 0.3             # was 0.2
+  residual: true           # per-LAYER residuals INSIDE the GNN
+  outer_residual: true     # skip connection AROUND the entire GNN block
+                            # (anti-smoothing: pre-GNN temporal embedding
+                            # is preserved across the cross-stock mixing)
+  gated_outer_residual: true   # when True, mix pre-GNN + post-GNN with a
+                                # learned per-channel sigmoid gate instead
+                                # of a plain add. Lets the model decide
+                                # per-stock how much to trust each path.
+  # GAT / R-GAT
+  attention_heads: 2       # was 4
+  # GraphSAGE
+  sample_size: 10
+
+# Edge construction thresholds (used by graph builder)
+edges:
+  correlation:
+    window: 30
+    threshold: 0.5
+    top_k: null            # set to an int to use top-K mode instead of threshold
+    multi_windows: [10, 30, 90]   # robust corr: take min(|ρ|) across windows
+                                    # set to null to disable (use single `window`)
+    inverse_vol_weight: true        # down-weight edges whose endpoints are
+                                    # high-vol (above-median) — trust stable
+                                    # stocks more than noisy ones
+  fundamental:
+    threshold: 0.7
+    refresh: quarterly
+
+# Hierarchical super-nodes
+hierarchy:
+  enabled: true
+  sector_nodes: 11         # GICS sectors
+  market_node: 1
+  bidirectional: true
+  aggregation: attention_weighted_mean
+  top_down_gating: sigmoid
+
+# Output heads — multi-task, each with its own loss weight (training_config)
+# Hidden sizes scaled to match d_model=64 post-right-sizing.
+heads:
+  ranking:
+    enabled: true
+    mlp: [64, 32, 1]
+    dropout: 0.3
+    temperature_scaling: true
+  return:
+    enabled: true
+    mlp: [64, 1]
+    dropout: 0.3
+  volatility:
+    enabled: true
+    mlp: [64, 1]
+    dropout: 0.3
+    output_activation: softplus   # volatility must be positive
+
+# Membership handling
+membership:
+  mode: dynamic            # fixed | dynamic — survivorship bias switch
+  pad_value: 0.0
+  use_masks: true

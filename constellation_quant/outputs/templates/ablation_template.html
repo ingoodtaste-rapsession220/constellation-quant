@@ -1,0 +1,47 @@
+{#
+  Sortable ablation comparison — invoked by `generate_report.py` via
+  the same Jinja environment as report_template.html. Extends the main
+  template's CSS implicitly (callers embed or link it).
+#}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>DynaGraph-500 Ablation Matrix</title>
+  <style>
+    body{font-family:system-ui,sans-serif;margin:20px;color:#222;}
+    table{border-collapse:collapse;width:100%;font-size:13px;}
+    th,td{border:1px solid #ddd;padding:6px 10px;}
+    th{background:#f3f4f6;cursor:pointer;user-select:none;}
+    th:hover{background:#e5e7eb;}
+    td.best{background:#d1fae5;}
+    td.worst{background:#fee2e2;}
+    td.num{text-align:right;font-variant-numeric:tabular-nums;}
+  </style>
+</head>
+<body>
+  <h1>DynaGraph-500 &mdash; Ablation matrix</h1>
+  {{ table_html | safe }}
+  <script>
+    // Minimal column-click sort.
+    document.querySelectorAll('th').forEach((th, idx) => {
+      th.addEventListener('click', () => {
+        const table = th.closest('table');
+        const rows = Array.from(table.querySelectorAll('tbody tr'));
+        const asc = !th.classList.contains('asc');
+        rows.sort((a, b) => {
+          const av = a.cells[idx].textContent.trim();
+          const bv = b.cells[idx].textContent.trim();
+          const na = parseFloat(av), nb = parseFloat(bv);
+          if (!isNaN(na) && !isNaN(nb)) return asc ? na - nb : nb - na;
+          return asc ? av.localeCompare(bv) : bv.localeCompare(av);
+        });
+        table.querySelectorAll('th').forEach(x => x.classList.remove('asc', 'desc'));
+        th.classList.toggle(asc ? 'asc' : 'desc');
+        const tbody = table.querySelector('tbody');
+        rows.forEach(r => tbody.appendChild(r));
+      });
+    });
+  </script>
+</body>
+</html>

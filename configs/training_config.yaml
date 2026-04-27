@@ -1,0 +1,84 @@
+# Training loop configuration.
+
+optimizer:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 1.0e-3        # was 1.0e-4 — stronger L2 for ~490 indep-sample regime
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+
+scheduler:
+  name: cosine_annealing      # cosine_annealing | warm_restarts | reduce_on_plateau | one_cycle
+  T_max: 100
+  T_0: 50                     # warm_restarts
+  T_mult: 2
+  warmup_epochs: 5
+  warmup_start_factor: 0.01
+  min_lr: 1.0e-6
+
+loop:
+  batch_size: 32              # mini-batch = 32 time steps; each step is one full graph
+  max_epochs: 200
+  num_workers: 4              # DataLoader workers
+  shuffle: false              # NEVER shuffle time series
+  pin_memory: true
+
+regularization:
+  gradient_clip_norm: 1.0
+  dropout_override: null      # null = use model_config dropout values
+
+mixed_precision:
+  enabled: true
+  dtype: float16              # float16 | bfloat16
+
+distributed:
+  backend: nccl               # nccl on GPU; gloo on CPU
+  find_unused_parameters: false
+
+# Multi-task loss weights — loss = sum(w_i * loss_i)
+# ranking.name choices:
+#   - listmle    : full-list MLE (penalises every position equally)
+#   - lambdarank : pairwise hinge with auto-weighting near top
+#   - ic_max     : negate Pearson IC across the cross-section per date
+#                   (directly optimises the metric we evaluate on)
+losses:
+  ranking:
+    name: ic_max              # ic_max | listmle | lambdarank
+    weight: 1.0
+  return:
+    name: mse
+    weight: 0.1
+  volatility:
+    name: mse
+    weight: 0.05
+
+# Validation + early stopping
+validation:
+  every_n_epochs: 1
+  metrics: [ic, ic_ir, hit_rate, long_short_spread]
+  per_sector_breakdown: true
+
+early_stopping:
+  enabled: true
+  monitor: val_ic
+  mode: max                   # maximise IC
+  patience: 15
+  min_delta: 0.0
+
+# Checkpointing — tuned for gpu-short 1 h jobs
+checkpoint:
+  save_best: true
+  save_periodic_every: 1      # every epoch — SLURM can kill us any time
+  keep_last_n: 2              # prune to save disk
+  resume_if_exists: true      # auto-resume on HPC restart
+
+# Experiment tracking
+wandb:
+  enabled: true
+  offline_on_hpc: true        # WANDB_MODE=offline when inside a SLURM job
+  log_gradients_every: 100
+  log_model: false            # checkpoints live on $SCRATCH, not wandb
+
+# Reproducibility
+seed: 42
+deterministic_cuda: true      # ~5-10% slower but bit-identical

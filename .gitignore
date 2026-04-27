@@ -1,0 +1,83 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+
+# Virtual envs
+.venv/
+venv/
+env/
+ENV/
+
+# Testing / typing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.ruff_cache/
+.mypy_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Secrets / local env
+.env
+.env.local
+*.key
+
+# Experiment tracking
+wandb/
+
+# Data — large, reproducible, not committed
+data/raw/
+data/processed/
+data/cache/
+data/graphs/
+*.parquet
+*.feather
+
+# Model checkpoints — large
+*.pt
+*.pth
+*.ckpt
+checkpoints/
+
+# Outputs — generated
+outputs/
+!constellation_quant/outputs/
+!constellation_quant/outputs/templates/
+
+# HPC / SLURM logs
+logs/
+slurm-*.out
+*.log
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Internal / dev notes — not for public repo
+HANDOFF.md
+REVIEW_FINDINGS.md
+dynagraph500_build_prompt.md
+dynagraph500_dev_plan.html
+dynagraph500_file_tree.html
+dynagraph500_*.zip
+backup_pre_gated_fusion/
+
+# Proposal / private
+proposal.html
+proposal.pdf
+
+# Local dev scratch
+.scratch/

@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>DynaGraph-500 Ablation Report</title>
+  <style>
+    :root {
+      --bg:#0a0e17; --surface:#111827; --border:#2a3450;
+      --text:#e2e8f0; --muted:#8892a8; --accent:#3b82f6;
+      --green:#10b981; --red:#ef4444; --amber:#f59e0b;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{
+      font-family:'IBM Plex Sans',system-ui,sans-serif;
+      background:var(--bg);color:var(--text);line-height:1.6;padding:40px 20px;
+    }
+    .container{max-width:1100px;margin:0 auto;}
+    h1{font-size:32px;margin-bottom:6px;}
+    h2{font-size:20px;color:var(--accent);margin:32px 0 12px;}
+    p{color:var(--muted);margin-bottom:16px;}
+    table{border-collapse:collapse;width:100%;font-size:13px;margin:12px 0;}
+    th,td{border:1px solid var(--border);padding:8px 10px;}
+    th{background:var(--surface);color:var(--muted);text-transform:uppercase;
+       font-size:11px;letter-spacing:1px;text-align:left;}
+    tr:nth-child(even) td{background:var(--surface);}
+    td{color:var(--text);font-variant-numeric:tabular-nums;}
+    img{max-width:100%;border:1px solid var(--border);border-radius:6px;
+        margin:16px 0;background:white;}
+    .tag{display:inline-block;padding:2px 8px;border-radius:4px;
+         font-family:'IBM Plex Mono',monospace;font-size:11px;background:var(--surface);
+         color:var(--accent);margin-right:6px;}
+
+    /* Executive summary */
+    .summary-card{background:var(--surface);border:1px solid var(--border);
+                   border-radius:8px;padding:24px;margin:16px 0 32px;}
+    .summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+                   gap:16px;margin-top:12px;}
+    .summary-item{border-left:3px solid var(--accent);padding-left:12px;}
+    .summary-item .label{font-size:11px;letter-spacing:1px;text-transform:uppercase;
+                          color:var(--muted);}
+    .summary-item .value{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums;
+                          margin-top:4px;}
+    .summary-item .value.pos{color:var(--green);}
+    .summary-item .value.neg{color:var(--red);}
+
+    /* Config dump */
+    details{background:var(--surface);border:1px solid var(--border);
+             border-radius:8px;padding:12px 16px;margin:16px 0;}
+    details summary{cursor:pointer;color:var(--muted);font-size:13px;}
+    pre{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);
+         overflow-x:auto;max-height:320px;margin-top:10px;}
+
+    .footer{margin-top:60px;padding-top:20px;border-top:1px solid var(--border);
+            text-align:center;color:var(--muted);font-size:12px;}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>DynaGraph-500 Ablation Report</h1>
+    <p>
+      Dynamic Graph-Temporal Deep Learning for S&amp;P 500 Prediction.
+      {% if variants %}
+        {{ variants | length }} variant{{ 's' if variants|length != 1 else '' }} compared.
+      {% endif %}
+    </p>
+
+    {% if variants %}
+    <p>
+      {% for v in variants %}<span class="tag">{{ v }}</span>{% endfor %}
+    </p>
+    {% endif %}
+
+    {% if exec_summary and exec_summary.best_variant %}
+    <div class="summary-card">
+      <div style="font-size:13px;letter-spacing:2px;text-transform:uppercase;
+                   color:var(--muted);">Executive summary</div>
+      <div style="font-size:24px;font-weight:600;margin:6px 0;">
+        Best variant: <span style="color:var(--accent);">{{ exec_summary.best_variant }}</span>
+      </div>
+      <div class="summary-grid">
+        <div class="summary-item">
+          <div class="label">Sharpe</div>
+          <div class="value {% if exec_summary.best_sharpe > 0 %}pos{% else %}neg{% endif %}">
+            {{ "%.2f"|format(exec_summary.best_sharpe) }}
+          </div>
+        </div>
+        <div class="summary-item">
+          <div class="label">Annual return</div>
+          <div class="value {% if exec_summary.best_annual_return > 0 %}pos{% else %}neg{% endif %}">
+            {{ "%.1f"|format(exec_summary.best_annual_return * 100) }}%
+          </div>
+        </div>
+        <div class="summary-item">
+          <div class="label">Max drawdown</div>
+          <div class="value neg">
+            {{ "%.1f"|format(exec_summary.best_max_drawdown * 100) }}%
+          </div>
+        </div>
+        <div class="summary-item">
+          <div class="label">Avg turnover</div>
+          <div class="value">{{ "%.2f"|format(exec_summary.best_avg_turnover) }}</div>
+        </div>
+        {% if exec_summary.sharpe_lift is defined %}
+        <div class="summary-item">
+          <div class="label">Sharpe lift vs {{ exec_summary.baseline_variant }}</div>
+          <div class="value {% if exec_summary.sharpe_lift > 0 %}pos{% else %}neg{% endif %}">
+            {{ "%+.2f"|format(exec_summary.sharpe_lift) }}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <h2>Variant comparison</h2>
+    {{ table_html | safe }}
+
+    {% if significance_rows %}
+    <h2>Significance tests (vs previous variant)</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Comparison</th><th>p-value (IC)</th><th>Sharpe &Delta;</th>
+          <th>CI low</th><th>CI high</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in significance_rows %}
+        <tr>
+          <td>{{ row.comparison }}</td>
+          <td>{{ "%.4f"|format(row.p_value_ic) if row.p_value_ic == row.p_value_ic else "&mdash;" | safe }}</td>
+          <td>{{ "%.3f"|format(row.sharpe_diff) if row.sharpe_diff == row.sharpe_diff else "&mdash;" | safe }}</td>
+          <td>{{ "%.3f"|format(row.ci_low) if row.ci_low == row.ci_low else "&mdash;" | safe }}</td>
+          <td>{{ "%.3f"|format(row.ci_high) if row.ci_high == row.ci_high else "&mdash;" | safe }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    {% if regime_table_html %}
+    <h2>Per-regime breakdown</h2>
+    {{ regime_table_html | safe }}
+    {% endif %}
+
+    {% if plots.sharpe %}
+      <h2>Sharpe ratio by variant</h2>
+      <img src="{{ plots.sharpe }}" alt="Sharpe bar chart">
+    {% endif %}
+
+    {% if plots.annual_return %}
+      <h2>Annual return by variant</h2>
+      <img src="{{ plots.annual_return }}" alt="Annual return bar chart">
+    {% endif %}
+
+    {% if plots.equity %}
+      <h2>Equity curves</h2>
+      <img src="{{ plots.equity }}" alt="Equity curves">
+    {% endif %}
+
+    {% if plots.drawdown %}
+      <h2>Drawdowns</h2>
+      <img src="{{ plots.drawdown }}" alt="Drawdown overlay">
+    {% endif %}
+
+    {% if config_dump_json %}
+    <h2>Reproducibility</h2>
+    <details>
+      <summary>Config snapshot</summary>
+      <pre>{{ config_dump_json }}</pre>
+    </details>
+    {% endif %}
+
+    <div class="footer">
+      DynaGraph-500 &middot; generated report
+    </div>
+  </div>
+</body>
+</html>

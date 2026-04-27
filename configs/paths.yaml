@@ -1,0 +1,39 @@
+# Central path registry. All paths go through this file.
+# $PROJECT_ROOT and $DATA_DIR are expanded from the environment by
+# constellation_quant.utils.config_loader.
+#
+# ── HPC layout (pilot_gpu cluster) ─────────────────────────────────────
+#   export PROJECT_ROOT=/data/EECS-Theory/Zahir_DAYNGRAPH500
+#   export DATA_DIR=$PROJECT_ROOT/data
+# ── Local layout (dev / testing) ──────────────────────────────────────
+#   export PROJECT_ROOT=$PWD
+#   export DATA_DIR=$PWD/.scratch/constellation_quant
+#
+# The SLURM templates export these explicitly before any script runs.
+
+# Base directories
+project_root: ${PROJECT_ROOT}
+data_dir: ${DATA_DIR}
+
+# Data pipeline (raw + processed)
+raw_data: ${DATA_DIR}/raw
+processed_data: ${DATA_DIR}/processed
+cache_dir: ${DATA_DIR}/cache
+membership_file: ${DATA_DIR}/membership_roster.json
+
+# Precomputed graphs (one-time preprocessing output)
+graphs_dir: ${DATA_DIR}/graphs
+
+# Training artefacts — stay inside the project root on this cluster (no
+# separate $SCRATCH filesystem). Safe to delete between runs.
+checkpoint_dir: ${DATA_DIR}/checkpoints
+log_dir: ${PROJECT_ROOT}/logs
+
+# Outputs — report HTML, plots, forward-test log — lives with the code
+outputs_dir: ${PROJECT_ROOT}/outputs
+reports_dir: ${PROJECT_ROOT}/outputs/reports
+
+# Experiment tracking
+wandb_project: constellation_quant
+wandb_entity: null  # set via env or CLI
+wandb_dir: ${DATA_DIR}/wandb

@@ -1,0 +1,65 @@
+# Feature engineering definitions.
+# Each feature group can be toggled via `enabled`. Ablation configs override
+# these toggles to produce Model A (technical only), C (+fundamentals), etc.
+
+technical:
+  enabled: true
+  indicators:
+    log_returns:
+      periods: [1, 5, 20]
+    realized_volatility:
+      periods: [5, 20, 60]
+    rsi:
+      period: 14
+    macd:
+      fast: 12
+      slow: 26
+      signal: 9
+    bollinger:
+      period: 20
+      num_std: 2
+    atr:
+      period: 14
+    obv:
+      enabled: true
+    relative_volume:
+      window: 20
+    intraday_range:
+      enabled: true
+    gap:
+      enabled: true
+
+fundamental:
+  enabled: true
+  ratios: [pe, pb, de, roe, fcf_yield, dividend_yield]
+  growth: [revenue_yoy, eps_yoy]
+  size: [log_market_cap]
+  # Sector-specific adjustments — banks don't use EV/EBITDA
+  sector_specific:
+    financials:
+      use: [pb, roe, de]
+      skip: [ev_ebitda]
+  normalization: cross_sectional_zscore   # cross-section rank then z
+
+sentiment:
+  enabled: false            # enable in Models F+
+  sources:
+    finviz:
+      weight: 0.4
+    stocktwits:
+      weight: 0.3
+    reddit:
+      weight: 0.3
+  aggregations: [composite, momentum_5d, divergence, mention_spike]
+  missing_fill: 0.0         # neutral default
+
+graph_derived:
+  enabled: false            # derived from graph structure; needs graph to exist
+  metrics: [degree, avg_neighbor_return, sector_momentum, betweenness]
+
+# Post-processing (applied to combined feature matrix)
+normalization:
+  rolling_zscore_window: 252     # ~1 trading year, past-only
+  winsorize_std: 3.0
+  missing_fill: cross_sectional_median
+  fit_period: train              # fit on train split only; apply to val/test
