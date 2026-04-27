@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "data-pipeline"
+version = "0.1.0"
+description = "External-data acquisition and NLP feature pipeline for constellation-quant."
+authors = [{ name = "Zahir Nikraftar", email = "nikraftarz@gmail.com" }]
+license = { text = "MIT" }
+requires-python = ">=3.10"
+readme = "README.md"
+
+dependencies = [
+    "requests>=2.31",
+    "tqdm>=4.66",
+    "tenacity>=8.2",
+    "lxml>=4.9",
+    "beautifulsoup4>=4.12",
+    "pandas>=2.0",
+    "pyarrow>=14.0",
+    "numpy>=1.24",
+    "pyyaml>=6.0",
+    "python-dateutil>=2.8",
+]
+
+[project.optional-dependencies]
+nlp = [
+    # CPU-only inference is fine for FinBERT.
+    # bge-m3 wants GPU for any reasonable throughput on the full universe.
+    "torch>=2.1",
+    "transformers>=4.40",
+    "sentence-transformers>=2.7",
+    "huggingface-hub>=0.20",
+]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.1",
+    "mypy>=1.5",
+]
+
+[project.scripts]
+dp-download-models = "data_pipeline.scripts.download_models:main"
+dp-download-filings = "data_pipeline.scripts.download_filings:main"
+dp-parse-filings = "data_pipeline.scripts.parse_filings:main"
+dp-compute-nlp = "data_pipeline.scripts.compute_nlp_features:main"
+dp-prepare-features = "data_pipeline.scripts.prepare_features:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["data_pipeline*"]
+exclude = ["tests*", "scripts*", "slurm*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
