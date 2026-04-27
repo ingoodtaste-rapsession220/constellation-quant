@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 # --------------------------------------------------------------------- canvas
-W, H = 1180, 620
+W, H = 1180, 700
 OUT_DIR = Path(__file__).parent / "variants"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -90,16 +90,20 @@ def box(x, y, w, h, fill, stroke, title, sub=None, faded=False):
         f'fill="{fill_eff}" stroke="{stroke_eff}" stroke-width="1.6"/>',
         # Left accent stripe
         f'<rect x="{x}" y="{y}" width="4" height="{h}" rx="2" ry="2" fill="{stroke_eff}"/>',
-        # Title text
-        f'<text x="{x + w/2}" y="{y + 22}" text-anchor="middle" '
-        f'font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="700" '
-        f'fill="{title_color}" letter-spacing="0.2">{title}</text>',
     ]
+    # Title text — support multi-line via newlines
+    title_lines = title.split("\n")
+    for i, line in enumerate(title_lines):
+        parts.append(
+            f'<text x="{x + w/2}" y="{y + 22 + i*15}" text-anchor="middle" '
+            f'font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="700" '
+            f'fill="{title_color}" letter-spacing="0.2">{line}</text>'
+        )
     if sub:
-        # support multi-line sub via newlines
+        sub_y0 = y + 22 + len(title_lines) * 15 + 8  # below the last title line
         for i, line in enumerate(sub.split("\n")):
             parts.append(
-                f'<text x="{x + w/2}" y="{y + 42 + i*14}" text-anchor="middle" '
+                f'<text x="{x + w/2}" y="{sub_y0 + i*14}" text-anchor="middle" '
                 f'font-family="Inter, system-ui, sans-serif" font-size="11" '
                 f'fill="{sub_color}">{line}</text>'
             )
@@ -208,33 +212,29 @@ def render(letter, title, cfg):
 
     # ============================================== col2: temporal / slow MLP
     if multi_scale:
-        # 3 stacked Informer blocks
-        scales = [("20-day", C_TEMPORAL, C_TEMPORAL_BD),
-                  ("60-day", C_TEMPORAL, C_TEMPORAL_BD),
-                  ("120-day", C_TEMPORAL, C_TEMPORAL_BD)]
-        sub_h = 28
-        gap = 4
-        ms_y = y_top + 5
-        for i, (name, fill, bd) in enumerate(scales):
+        # 3 stacked Informer blocks (one per timescale). The 3-stack itself
+        # visually conveys "multi-scale" — no caption needed.
+        scales = ["20-day", "60-day", "120-day"]
+        sub_h = 22
+        gap = 3
+        # Centre the 3-stack vertically inside the box_h slot.
+        total_h = 3 * sub_h + 2 * gap
+        ms_y = y_top + (box_h - total_h) // 2
+        for i, name in enumerate(scales):
             yy = ms_y + i * (sub_h + gap)
             parts.append(
                 f'<rect x="{col2_x}" y="{yy}" width="{col2_w}" height="{sub_h}" '
-                f'rx="6" ry="6" fill="{fill}" stroke="{bd}" stroke-width="1.4"/>'
+                f'rx="5" ry="5" fill="{C_TEMPORAL}" stroke="{C_TEMPORAL_BD}" stroke-width="1.4"/>'
             )
             parts.append(
                 f'<rect x="{col2_x}" y="{yy}" width="3" height="{sub_h}" '
-                f'rx="1.5" ry="1.5" fill="{bd}"/>'
+                f'rx="1.5" ry="1.5" fill="{C_TEMPORAL_BD}"/>'
             )
             parts.append(
-                f'<text x="{col2_x + 12}" y="{yy + 18}" '
-                f'font-family="Inter, system-ui, sans-serif" font-size="12" '
+                f'<text x="{col2_x + 12}" y="{yy + 15}" '
+                f'font-family="Inter, system-ui, sans-serif" font-size="11" '
                 f'font-weight="700" fill="{INK}">Informer · {name}</text>'
             )
-        parts.append(
-            f'<text x="{col2_x + col2_w/2}" y="{y_top + box_h + 12}" text-anchor="middle" '
-            f'font-family="Inter, system-ui, sans-serif" font-size="11" '
-            f'fill="{INK_SUB}" font-style="italic">multi-scale (3× parallel)</text>'
-        )
     else:
         parts.extend(box(col2_x, y_top, col2_w, box_h, C_TEMPORAL, C_TEMPORAL_BD,
                          "Informer encoder",
@@ -255,9 +255,15 @@ def render(letter, title, cfg):
     gnn_h = box_h + (60 if has_hier else 0)
     if has_gnn:
         gnn_name = cfg["graph"]
-        edge_lines = " · ".join(cfg["edges"])
-        # Stop if no edges (variant A wouldn't reach here but defensive)
-        sub_text = f"{gnn_name} · 2 layers\nedges: {edge_lines}"
+        # Short-form edge labels so they fit inside the GNN box width
+        edge_short = {
+            "sector": "sector",
+            "correlation": "corr",
+            "attention": "attn",
+            "fundamental": "fund",
+        }
+        edges_short = " · ".join(edge_short.get(e, e) for e in cfg["edges"])
+        sub_text = f"{gnn_name} · 2 layers\nedges: {edges_short}"
         parts.extend(box(col4_x, gnn_y, col4_w, box_h, C_GNN, C_GNN_BD,
                          f"GNN — {gnn_name}", sub_text))
         # hierarchy as additional pill below
@@ -339,20 +345,25 @@ def render(letter, title, cfg):
                        col6_x - 4, y_mid + box_h / 2))
 
     # ============================================== bottom: footnote / output
-    foot_y = y_mid + box_h + 50
+    # Place footer well below the deepest content (which is the hierarchy
+    # block at y ≈ 420 for variants H, I).
+    foot_y = 510
     parts.append(
         f'<line x1="40" y1="{foot_y - 18}" x2="{W - 40}" y2="{foot_y - 18}" '
         f'stroke="{DIVIDER}" stroke-width="1"/>'
     )
-    # Per-variant signature
+    # Per-variant signature — short labels so it fits in one line
+    edge_short_map = {"sector": "sector", "correlation": "corr",
+                      "attention": "attn", "fundamental": "fund"}
     feature_summary = []
-    feature_summary.append(f"temporal = {'multi-scale (3× Informer)' if multi_scale else 'Informer (1×)'}")
+    feature_summary.append("temporal = Informer×3 (multi-scale)" if multi_scale else "temporal = Informer")
     if has_gnn:
-        feature_summary.append(f"GNN = {cfg['graph']}, edges = {' + '.join(cfg['edges'])}")
+        edges_compact = "+".join(edge_short_map.get(e, e) for e in cfg["edges"])
+        feature_summary.append(f"GNN = {cfg['graph']}[{edges_compact}]")
     else:
-        feature_summary.append("GNN = disabled (no cross-stock messaging)")
+        feature_summary.append("GNN = disabled")
     if has_hier:
-        feature_summary.append("hierarchy = sector + market super-nodes")
+        feature_summary.append("hierarchy = sector + market")
     feature_summary.append(f"membership = {cfg['membership']}")
     feature_text = "  ·  ".join(feature_summary)
     parts.append(
